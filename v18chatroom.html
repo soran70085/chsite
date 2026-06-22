@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>ChatApp</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+:root{
+--bg:#1a1b1e;--s1:#25262b;--s2:#2c2e33;--s3:#373a40;--s4:#4a4d57;
+--ac:#5c7cfa;--gr:#51cf66;--rd:#fa5252;--yw:#fcc419;
+--bself:var(--ac);--bpeer:var(--s2);
+--t1:#c1c2c5;--t2:#909296;--t3:#5c5f66;--t4:#2c2e33;
+--r:8px;--sh:0 4px 20px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:system-ui,-apple-system,'Hiragino Sans',sans-serif;background:var(--bg);color:var(--t1);overflow:hidden;font-size:14px}
+body{display:flex;flex-direction:column}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:var(--s4);border-radius:2px}
+input,textarea,button{font-family:inherit}
+
+/* ── LOGIN ── */
+#login{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;align-items:center;justify-content:center}
+.lbox{background:var(--s1);border-radius:12px;padding:32px 28px;width:100%;max-width:320px;box-shadow:var(--sh)}
+.lbox h2{font-size:20px;font-weight:700;text-align:center;margin-bottom:4px;color:#fff}
+.lbox p{font-size:12px;color:var(--t3);text-align:center;margin-bottom:24px}
+.fi{width:100%;padding:10px 13px;background:var(--s2);border:1.5px solid var(--s3);border-radius:var(--r);font-size:14px;color:var(--t1);outline:none;transition:border .2s}
+.fi:focus{border-color:var(--ac)}
+.fb{width:100%;padding:11px;border:none;border-radius:var(--r);font-size:14px;font-weight:700;margin-top:10px;background:var(--ac);color:#fff;cursor:pointer;transition:filter .15s}
+.fb:hover{filter:brightness(1.1)}.fb:active{filter:brightness(.9)}
+
+/* ── APP ── */
+#app{flex:1;display:none;min-height:0;overflow:hidden}
+#app.on{display:flex}
+
+/* ── LEFT (ROOM) ── */
+#left{width:50%;border-right:1px solid var(--s3);display:flex;flex-direction:column;min-height:0}
+.hdr{height:52px;background:var(--s1);border-bottom:1px solid var(--s3);display:flex;align-items:center;padding:0 14px;gap:8px;flex-shrink:0}
+.hdr h3{font-size:15px;font-weight:700;flex:1;color:#fff}
+.htag{font-size:11px;background:var(--s3);color:var(--t2);padding:2px 8px;border-radius:999px}
+.hbtn{background:none;border:none;color:var(--t3);width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:all .15s}
+.hbtn:hover{background:var(--s3);color:var(--t1)}
+
+/* member bar */
+.mbar{padding:6px 10px;background:var(--s1);border-bottom:1px solid var(--s3);display:flex;gap:4px;overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+.mbar::-webkit-scrollbar{display:none}
+.mchip{display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:var(--s2);border:1px solid var(--s3);cursor:pointer;font-size:12px;white-space:nowrap;transition:all .15s;flex-shrink:0}
+.mchip:hover{border-color:var(--ac)}.mchip.me{border-color:var(--ac)}
+.mcav{width:16px;height:16px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:10px;flex-shrink:0}
+.mcav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.rbadge{font-size:10px;padding:1px 5px;border-radius:3px;font-weight:700;margin-left:2px}
+.rb-a{background:var(--rd);color:#fff}.rb-m{background:var(--gr);color:#111}
+
+/* search wrap */
+#srchwrap{display:none;padding:6px 10px;border-bottom:1px solid var(--s3);flex-shrink:0;position:relative}
+#srcinp{width:100%;padding:6px 10px 6px 28px;background:var(--s2);border:1px solid var(--s3);border-radius:5px;font-size:13px;color:var(--t1);outline:none}
+.srcicon{position:absolute;left:18px;top:50%;transform:translateY(-50%);color:var(--t3);font-size:12px;pointer-events:none}
+#srcres{position:absolute;top:calc(100% - 6px);left:10px;right:10px;background:var(--s1);border:1px solid var(--s3);border-radius:6px;max-height:220px;overflow-y:auto;z-index:40;display:none;box-shadow:var(--sh)}
+
+/* chat box */
+.cbox{flex:1;overflow-y:auto;padding:8px 0;display:flex;flex-direction:column;gap:1px}
+.dsep{align-self:center;font-size:11px;color:var(--t3);background:var(--s2);padding:2px 10px;border-radius:999px;margin:5px 0;flex-shrink:0}
+.smsg{align-self:center;font-size:11px;color:var(--t2);background:var(--s2);padding:3px 12px;border-radius:999px;margin:2px 14px;text-align:center;flex-shrink:0}
+
+.mwrap{display:flex;gap:9px;padding:2px 12px;position:relative;flex-shrink:0}
+.mwrap:hover{background:rgba(255,255,255,.02)}
+.mwrap.self{flex-direction:row-reverse}
+.mav{width:36px;height:36px;border-radius:50%;font-size:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;cursor:pointer;background:var(--s2)}
+.mav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.mbody{flex:1;min-width:0;max-width:calc(100% - 54px)}
+.mmeta{font-size:12px;color:var(--t2);margin-bottom:2px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.msnd{font-weight:700;font-size:13px}.mts{font-size:10px;color:var(--t4)}
+.mbbl{padding:7px 11px;border-radius:7px;font-size:14px;line-height:1.5;word-break:break-word;position:relative;display:inline-block;max-width:78%}
+.peer .mbbl{background:var(--bpeer);color:var(--t1);border-top-left-radius:2px}
+.self .mbbl{background:var(--bself);color:#fff;border-top-right-radius:2px}
+.mtxt{white-space:pre-wrap}
+.mexp{cursor:pointer;color:#a5b4fc;font-size:11px;margin-left:3px}
+.self .mexp{color:#c7d2fe}
+.mrp{background:rgba(255,255,255,.07);border-left:3px solid var(--ac);border-radius:3px;padding:3px 7px;margin-bottom:4px;font-size:11px;color:var(--t2);cursor:pointer}
+.mimg{max-width:260px;max-height:200px;border-radius:6px;cursor:pointer;display:block;margin-top:3px}
+.mvid{max-width:260px;max-height:180px;border-radius:6px;display:block;margin-top:3px}
+.mfile{display:inline-flex;align-items:center;gap:7px;background:var(--s3);border:1px solid var(--s4);border-radius:6px;padding:7px 10px;text-decoration:none;color:var(--t1);margin-top:3px;font-size:13px}
+.mlnk{background:rgba(92,124,250,.1);border:1px solid rgba(92,124,250,.25);border-radius:6px;padding:6px 10px;cursor:pointer;word-break:break-all;font-size:13px;color:#a5b4fc;display:inline-block;margin-top:3px;max-width:260px}
+.mtime{display:flex;align-items:center;gap:5px;margin-top:2px}
+.mread{font-size:10px;color:var(--gr);cursor:pointer;position:relative}
+.mreact{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
+.rbt{background:rgba(255,255,255,.06);border:1px solid var(--s3);border-radius:999px;padding:2px 6px;font-size:11px;cursor:pointer;display:flex;align-items:center;gap:2px;color:var(--t2);transition:all .12s}
+.rbt:hover,.rbt.mine{background:rgba(92,124,250,.2);border-color:var(--ac);color:var(--t1)}
+.delmsg{font-style:italic;color:var(--t3);font-size:12px}
+.delmsg.adm{color:var(--t2)}
+.cont .mav{visibility:hidden}.cont .mmeta{display:none}
+.macts{display:none;position:absolute;top:-34px;background:var(--s1);border:1px solid var(--s3);border-radius:6px;padding:3px;z-index:20;box-shadow:var(--sh);gap:2px}
+.self .macts{right:0}.peer .macts{left:54px}
+.mwrap:hover .macts{display:flex}
+.mac{background:none;border:none;width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--t3);transition:all .12s;cursor:pointer}
+.mac:hover{background:var(--s3);color:var(--t1)}
+.mac.d:hover{background:rgba(250,82,82,.15);color:var(--rd)}
+.rpick{position:absolute;top:-60px;background:var(--s1);border:1px solid var(--s3);border-radius:8px;padding:4px;z-index:30;display:none;gap:2px;box-shadow:var(--sh)}
+.self .rpick{right:0}.peer .rpick{left:54px}
+.rpick.on{display:flex}
+.rpb{font-size:16px;width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:none;border:none;transition:background .12s}
+.rpb:hover{background:var(--s2)}
+.readpop{position:absolute;bottom:calc(100% + 4px);background:var(--s1);border:1px solid var(--s3);border-radius:6px;padding:8px;min-width:155px;z-index:50;box-shadow:var(--sh);display:none}
+.readpop.on{display:block}
+.self .readpop{right:0}.peer .readpop{left:0}
+.rdph{font-size:10px;font-weight:700;color:var(--t3);text-transform:uppercase;margin-bottom:4px;letter-spacing:.4px}
+.rdpi{font-size:11px;color:var(--t2);display:flex;justify-content:space-between;padding:2px 0}
+
+/* input footer */
+.cftr{padding:8px 12px 12px;flex-shrink:0}
+.repbar{display:none;background:rgba(255,255,255,.04);border-left:3px solid var(--ac);border-radius:4px;padding:4px 8px;margin-bottom:5px;font-size:11px;color:var(--t2);align-items:center;justify-content:space-between}
+.repbar.on{display:flex}
+.repc{background:none;border:none;color:var(--t3);font-size:14px;cursor:pointer}
+.attm{display:none;gap:4px;margin-bottom:6px;flex-wrap:wrap}
+.attm.on{display:flex}
+.ato{display:flex;align-items:center;gap:4px;cursor:pointer;padding:5px 9px;background:var(--s2);border-radius:5px;font-size:12px;color:var(--t2);transition:background .12s;border:1px solid var(--s3)}
+.ato:hover{background:var(--s3)}
+.inpr{display:flex;gap:6px;align-items:flex-end;background:var(--s2);border-radius:var(--r);padding:4px 5px 4px 10px;border:1px solid var(--s3)}
+.inpr:focus-within{border-color:var(--ac)}
+.attbtn{background:none;border:none;color:var(--t3);width:32px;height:32px;font-size:18px;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:all .12s;cursor:pointer;flex-shrink:0}
+.attbtn:hover{color:var(--t1)}
+.mta{flex:1;padding:5px 3px;background:transparent;border:none;font-size:14px;color:var(--t1);outline:none;resize:none;max-height:110px;min-height:32px;line-height:1.45}
+.mta::placeholder{color:var(--t3)}
+.sndbtn{background:var(--ac);color:#fff;border:none;width:32px;height:32px;border-radius:6px;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s;cursor:pointer}
+.sndbtn:disabled{background:var(--s3);color:var(--t3)}.sndbtn:active:not(:disabled){transform:scale(.9)}
+
+/* user bar */
+.ubar{height:52px;background:var(--s1);border-top:1px solid var(--s3);display:flex;align-items:center;padding:0 10px;gap:8px;flex-shrink:0}
+.uav{width:34px;height:34px;border-radius:50%;background:var(--s2);font-size:19px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
+.uav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.unm{flex:1;min-width:0}
+.unm-n{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.unm-t{font-size:11px;color:var(--t3)}
+.ubtn{background:none;border:none;color:var(--t3);width:28px;height:28px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;transition:all .12s}
+.ubtn:hover{background:var(--s3);color:var(--t1)}
+
+/* ── RIGHT (DM) LINE-style ── */
+#right{width:50%;background:var(--s1);display:flex;flex-direction:column;min-height:0}
+.dmlistview{flex:1;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+.dmlistview.hide{display:none}
+.dmlhdr{padding:14px 14px 8px;font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.5px;flex-shrink:0}
+.dmlist{flex:1;overflow-y:auto}
+.dmi{display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .12s;border-bottom:1px solid var(--s3)}
+.dmi:hover{background:var(--s2)}.dmi.on{background:var(--s2)}
+.dmav{width:40px;height:40px;border-radius:50%;background:var(--s3);font-size:22px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;position:relative}
+.dmav img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.dmol{position:absolute;bottom:1px;right:1px;width:10px;height:10px;border-radius:50%;background:var(--gr);border:2px solid var(--s1)}
+.dminfo{flex:1;min-width:0}
+.dmnm{font-size:13px;font-weight:600;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dmsub{font-size:11px;color:var(--t3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.dmnb{background:var(--rd);color:#fff;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;flex-shrink:0}
+
+#dmchat{display:none;flex-direction:column;flex:1;min-height:0}
+#dmchat.on{display:flex}
+.dmhdr{height:52px;background:var(--s1);border-bottom:1px solid var(--s3);display:flex;align-items:center;padding:0 12px;gap:10px;flex-shrink:0}
+.dmbk{background:none;border:none;color:var(--t2);font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
+.dmhdr-av{width:32px;height:32px;border-radius:50%;background:var(--s3);font-size:18px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
+.dmhdr-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.dmhdr-nm{font-size:14px;font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff}
+.icpbanner{background:rgba(250,82,82,.1);border-bottom:1px solid rgba(250,82,82,.25);padding:5px 14px;font-size:11px;color:var(--rd);flex-shrink:0;display:none}
+.dmmsgs{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:3px}
+
+/* LINE-style DM bubbles */
+.dmm-row{display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
+.dmm-row.self{flex-direction:row-reverse}
+.dmm-row-av{width:28px;height:28px;border-radius:50%;background:var(--s3);font-size:15px;display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0}
+.dmm-row-av img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.dmm-col{display:flex;flex-direction:column;gap:2px;max-width:72%}
+.dmm-row.self .dmm-col{align-items:flex-end}
+.dmm-snd{font-size:10px;color:var(--t3);margin-bottom:1px;padding:0 2px}
+.dmm-bbl{padding:8px 11px;border-radius:16px;font-size:13px;line-height:1.5;word-break:break-word;position:relative}
+.dmm-row.peer .dmm-bbl{background:var(--s2);border-top-left-radius:4px}
+.dmm-row.self .dmm-bbl{background:var(--ac);color:#fff;border-top-right-radius:4px}
+.dmm-bbl.del{opacity:.5;font-style:italic}
+.dmm-meta{display:flex;align-items:center;gap:5px}
+.dmm-ts{font-size:10px;color:var(--t3)}
+.dmm-del-btn{background:none;border:none;color:var(--t3);font-size:11px;cursor:pointer;padding:0 2px;display:none}
+.dmm-row.self:hover .dmm-del-btn{display:block}
+
+.dmftr{padding:8px 10px;border-top:1px solid var(--s3);display:flex;gap:6px;flex-shrink:0;background:var(--s1)}
+.dminp{flex:1;padding:9px 12px;background:var(--s2);border:1.5px solid var(--s3);border-radius:22px;font-size:13px;color:var(--t1);outline:none;transition:border .2s}
+.dminp:focus{border-color:var(--ac)}
+.dmsnd{background:var(--ac);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:filter .15s}
+.dmsnd:hover{filter:brightness(1.1)}
+
+/* admin intercept area in DM list */
+.icp-sect{border-top:1px solid rgba(250,82,82,.25);margin-top:4px;padding-top:4px}
+.icp-lbl{padding:4px 14px;font-size:10px;color:var(--rd);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.icp-item{display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;transition:background .12s;font-size:12px;color:var(--t2)}
+.icp-item:hover{background:var(--s2)}.icp-item.on{background:var(--s2)}
+
+/* DM status bar bottom */
+.dmstbar{height:52px;border-top:1px solid var(--s3);background:var(--s1);display:flex;align-items:center;padding:0 14px;font-size:12px;color:var(--t3);flex-shrink:0}
+
+/* ── OVERLAYS ── */
+.ctx{position:fixed;background:var(--s1);border:1px solid var(--s3);border-radius:var(--r);padding:3px;z-index:300;box-shadow:var(--sh);min-width:160px;display:none}
+.ctx.on{display:block}
+.cxi{padding:7px 10px;border-radius:5px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:7px;transition:background .1s;color:var(--t1)}
+.cxi:hover{background:var(--s2)}.cxi.d{color:var(--rd)}.cxi.s{color:var(--gr)}.cxi.m{color:var(--ac)}
+.cxsep{height:1px;background:var(--s3);margin:3px 0}
+
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:none;align-items:center;justify-content:center;padding:16px}
+.ov.on{display:flex}
+.obox{background:var(--s1);border-radius:12px;padding:24px 22px;width:100%;max-width:360px;box-shadow:var(--sh);overflow-y:auto;max-height:90vh}
+.obox h3{font-size:17px;font-weight:700;margin-bottom:16px;color:#fff}
+.sec{font-size:11px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.4px;margin:12px 0 5px}
+.sec:first-of-type{margin-top:0}
+.igrid{display:flex;gap:4px;flex-wrap:wrap;margin:5px 0}
+.iopt{font-size:18px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--s2);border:2px solid transparent;transition:all .15s}
+.iopt.on{border-color:var(--ac)}
+.irow{display:flex;gap:7px;align-items:center;margin:5px 0}
+.iprev{width:44px;height:44px;border-radius:50%;background:var(--s2);border:2px solid var(--s3);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;overflow:hidden}
+.iprev img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.cpr{display:flex;gap:4px;flex-wrap:wrap;margin:5px 0;align-items:center}
+.csw{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2.5px solid transparent;flex-shrink:0;transition:all .15s}
+.csw.on{border-color:#fff;transform:scale(1.15)}
+.ccin{width:68px;padding:4px 7px;border-radius:5px;border:1.5px solid var(--s3);background:var(--s2);color:var(--t1);font-size:12px;outline:none}
+.thgrid{display:flex;gap:4px;flex-wrap:wrap;margin:5px 0}
+.thchip{padding:4px 10px;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;border:1.5px solid var(--s3);background:var(--s2);transition:all .15s;white-space:nowrap}
+.thchip.on{border-color:var(--ac);background:rgba(92,124,250,.12)}
+.brow{display:flex;gap:6px;margin:5px 0}.bhalf{flex:1}
+.bhalf label{font-size:11px;color:var(--t3);display:block;margin-bottom:3px}
+.padv{background:rgba(250,82,82,.07);border:1px solid rgba(250,82,82,.2);border-radius:6px;padding:8px;margin-top:8px}
+.sabts{display:flex;gap:8px;margin-top:14px}
+.sabt{flex:1;padding:10px;border:none;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer}
+.sabt-ok{background:var(--ac);color:#fff}.sabt-cl{background:var(--s3);color:var(--t1)}
+
+.cfov{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+.cfov.on{display:flex}
+.cfbox{background:var(--s1);border-radius:10px;padding:22px 20px;max-width:280px;width:100%;text-align:center;box-shadow:var(--sh)}
+.cfbox h3{margin-bottom:6px;font-size:16px;font-weight:700;color:#fff}
+.cfbox p{color:var(--t3);font-size:12px;margin-bottom:14px}
+.cfbts{display:flex;gap:7px}
+.cfno,.cfyes{flex:1;padding:10px;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer}
+.cfno{background:var(--s3);color:var(--t1)}.cfyes{background:var(--rd);color:#fff}
+
+.adov{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:400;display:none;align-items:center;justify-content:center;padding:16px}
+.adov.on{display:flex}
+.adbox{background:var(--s1);border-radius:10px;width:100%;max-width:500px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--sh)}
+.adph{height:46px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--s3);flex-shrink:0}
+.adph h3{font-size:14px;font-weight:700;color:#fff}
+.adtabs{display:flex;border-bottom:1px solid var(--s3);flex-shrink:0}
+.adtab{flex:1;padding:9px;border:none;background:none;color:var(--t3);font-size:12px;font-weight:600;border-bottom:2px solid transparent;cursor:pointer;transition:all .15s}
+.adtab.on{color:var(--t1);border-bottom-color:var(--ac)}
+.adbody{flex:1;overflow-y:auto;padding:12px}
+.adli{padding:7px 9px;border-radius:5px;background:var(--s2);margin-bottom:4px;font-size:12px;border-left:3px solid var(--s4)}
+.adli.del{border-left-color:var(--rd)}.adli.dm{border-left-color:var(--ac)}
+.adlii{color:var(--t3);font-size:11px;margin-bottom:2px}.adlim{color:var(--t1)}
+
+.lbx{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:600;display:none;align-items:center;justify-content:center}
+.lbx.on{display:flex}
+.lbxc{position:fixed;top:12px;right:12px;background:rgba(255,255,255,.12);border:none;color:#fff;width:34px;height:34px;border-radius:50%;font-size:15px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+#lbimg{max-width:95vw;max-height:92vh;border-radius:5px}
+
+.toast{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);background:var(--s1);color:var(--t1);padding:7px 15px;border-radius:999px;font-size:12px;opacity:0;z-index:700;border:1px solid var(--s3);pointer-events:none;white-space:nowrap;transition:all .22s}
+.toast.on{opacity:1;transform:translateX(-50%) translateY(-6px)}
+.notif{position:fixed;top:12px;right:12px;background:var(--s1);border:1px solid var(--s3);border-radius:8px;padding:10px 14px;font-size:13px;opacity:0;z-index:800;box-shadow:var(--sh);max-width:240px;pointer-events:none;transition:all .25s}
+.notif.on{opacity:1}
+
+/* themes */
+body.th-dark{--bg:#0a0a0a;--s1:#111;--s2:#1a1a1a;--s3:#222;--s4:#333}
+body.th-light{--bg:#f0f2f5;--s1:#fff;--s2:#e8eaed;--s3:#d0d3da;--s4:#b0b3bb;--t1:#1a1b1e;--t2:#5c5f66;--t3:#909296;--t4:#c1c2c5;--bpeer:#e8eaed}
+body.th-blue{--bg:#05102a;--s1:#0a1a3a;--s2:#0f2050;--s3:#1a3060;--s4:#2a4070;--ac:#60a5fa}
+body.th-green{--bg:#0a1a0a;--s1:#0d1f0d;--s2:#152015;--s3:#1c2c1c;--s4:#243424;--ac:#4ade80}
+body.th-pink{--bg:#1a0f1a;--s1:#1f1225;--s2:#2a1a2e;--s3:#352038;--s4:#452848;--ac:#f472b6}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="lbox">
+    <h2>💬 ChatApp</h2>
+    <p>名前を入力して入室してください</p>
+    <input class="fi" id="ln" type="text" placeholder="あなたの名前" maxlength="12" autocomplete="off">
+    <button class="fb" id="bent">入室</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- LEFT: ROOM -->
+  <div id="left">
+    <div class="hdr">
+      <span style="font-size:16px">💬</span>
+      <h3>Room</h3>
+      <span class="htag" id="memcount">0人</span>
+      <button class="hbtn" id="bsrch" title="検索">🔍</button>
+      <button class="hbtn" id="badm" title="管理" style="display:none">🛡</button>
+      <button class="hbtn" id="bleave" title="退出" style="color:var(--rd)">🚪</button>
+    </div>
+    <div class="mbar" id="mbar"></div>
+    <div id="srchwrap">
+      <span class="srcicon">🔍</span>
+      <input id="srcinp" placeholder="メッセージを検索...">
+      <div id="srcres"></div>
+    </div>
+    <div class="cbox" id="cbox"></div>
+    <div class="cftr">
+      <div class="repbar" id="repbar">
+        <span id="repbartxt">返信中...</span>
+        <button class="repc" id="repc">✕</button>
+      </div>
+      <div class="attm" id="attm">
+        <div class="ato" id="aoimg">🖼️ 画像</div>
+        <div class="ato" id="aovid">🎬 動画</div>
+        <div class="ato" id="aofile">📎 ファイル</div>
+        <div class="ato" id="aolink">🔗 リンク</div>
+      </div>
+      <div class="inpr">
+        <button class="attbtn" id="battch">＋</button>
+        <textarea class="mta" id="mta" placeholder="メッセージを入力..." disabled rows="1"></textarea>
+        <button class="sndbtn" id="bsnd" disabled>➤</button>
+      </div>
+    </div>
+    <div class="ubar">
+      <div class="uav" id="uav">😀</div>
+      <div class="unm">
+        <div class="unm-n" id="unm">-</div>
+        <div class="unm-t" id="utag">未接続</div>
+      </div>
+      <button class="ubtn" id="uset" title="設定">⚙️</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: DM -->
+  <div id="right">
+    <div class="hdr">
+      <span style="font-size:16px">✉️</span>
+      <h3 id="dmhdrnm">ダイレクトメッセージ</h3>
+    </div>
+    <div class="dmlistview" id="dmlistview">
+      <div class="dmlhdr">メンバー</div>
+      <div class="dmlist" id="dmlist"></div>
+    </div>
+    <div id="dmchat">
+      <div class="dmhdr">
+        <button class="dmbk" id="dmbk">←</button>
+        <div class="dmhdr-av" id="dmhdr-av">😀</div>
+        <div class="dmhdr-nm" id="dmhdr-nm">---</div>
+      </div>
+      <div class="icpbanner" id="icpbanner">🛡 管理者傍受モード</div>
+      <div class="dmmsgs" id="dmmsgs"></div>
+      <div class="dmftr" id="dmftr">
+        <input class="dminp" id="dminp" placeholder="メッセージ...">
+        <button class="dmsnd" id="dmsnd">➤</button>
+      </div>
+    </div>
+    <div class="dmstbar" id="dmstbar">DMを始めるにはメンバーを選択</div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div class="ctx" id="ctx"></div>
+
+<!-- SETTINGS OVERLAY -->
+<div class="ov" id="sov">
+  <div class="obox">
+    <h3>⚙️ 設定</h3>
+    <div class="sec">名前</div>
+    <input class="fi" id="spn" type="text" maxlength="12">
+    <div class="sec">アイコン</div>
+    <div class="irow">
+      <div class="iprev" id="spiprev">😀</div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+        <input class="fi" id="spie" type="text" maxlength="2" placeholder="絵文字" style="padding:7px 10px">
+        <input class="fi" id="spiu" type="text" placeholder="画像URL" style="padding:7px 10px">
+      </div>
+    </div>
+    <div class="igrid" id="spip"></div>
+    <div class="sec">名前の色</div>
+    <div class="cpr" id="spcp"><input class="ccin" id="spcc" type="text" placeholder="#c1c2c5" maxlength="7"></div>
+    <div class="sec">テーマ</div>
+    <div class="thgrid" id="spth"></div>
+    <div class="sec">吹き出し色</div>
+    <div class="brow">
+      <div class="bhalf"><label>自分</label><input class="fi" id="spbs" type="text" placeholder="#5c7cfa" maxlength="7" style="padding:7px 10px"></div>
+      <div class="bhalf"><label>相手</label><input class="fi" id="spbp" type="text" placeholder="#2c2e33" maxlength="7" style="padding:7px 10px"></div>
+    </div>
+    <div class="padv">
+      <div class="sec" style="color:var(--rd);margin-top:0">管理者パスワード</div>
+      <input class="fi" id="sppw" type="password" placeholder="パスワード入力で権限昇格">
+    </div>
+    <div class="sabts">
+      <button class="sabt sabt-cl" id="spcl">キャンセル</button>
+      <button class="sabt sabt-ok" id="spapply">適用</button>
+    </div>
+  </div>
+</div>
+
+<!-- LEAVE CONFIRM -->
+<div class="cfov" id="cfov">
+  <div class="cfbox">
+    <h3>退出しますか？</h3>
+    <p id="cfmsg">退出するとチャット履歴は消えます。</p>
+    <div class="cfbts">
+      <button class="cfno" id="cfno">キャンセル</button>
+      <button class="cfyes" id="cfyes">退出する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div class="adov" id="adov">
+  <div class="adbox">
+    <div class="adph"><h3>🛡 管理パネル</h3><button class="ubtn" id="adcl">✕</button></div>
+    <div class="adtabs">
+      <button class="adtab on" data-t="del">削除済み</button>
+      <button class="adtab" data-t="dm">DM傍受ログ</button>
+      <button class="adtab" data-t="log">ログ</button>
+    </div>
+    <div class="adbody" id="adbody"></div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div class="lbx" id="lbx"><button class="lbxc" id="lbxc">✕</button><img id="lbimg" src=""></div>
+
+<input type="file" id="fiimg" accept="image/*" style="display:none">
+<input type="file" id="fivid" accept="video/*" style="display:none">
+<input type="file" id="fifile" style="display:none">
+<div class="toast" id="toast"></div>
+<div class="notif" id="notif"></div>
+
+<script>
+const ROOM_ID="soran70085_room70085";
+const PW_ADMIN="soran70085";
+const MB8=8*1024*1024;
+const CLEN=300;
+const RL={NONE:0,MOD:1,ADMIN:2};
+const RLLBL={0:"👤 一般",1:"⭐ Mod",2:"🛡 管理者"};
+const RLCLS={0:"",1:"rb-m",2:"rb-a"};
+const EMOJIS=["😀","😎","🐱","🐶","🦊","🐸","🐼","🦁","🐧","🐙","🦋","🌟","🍎","🎮","🎵","🔥","💎","👻","🤖","🐲"];
+const COLORS=["#c1c2c5","#5c7cfa","#51cf66","#fcc419","#fa5252","#74c0fc","#ff6b9d","#63e6be","#f8961e","#a9e34b"];
+const THEMES=[{id:"default",l:"デフォルト"},{id:"dark",l:"ダーク"},{id:"light",l:"ライト"},{id:"blue",l:"ブルー"},{id:"green",l:"グリーン"},{id:"pink",l:"ピンク"}];
+const REACTS=["👍","❤️","😂","😮","😢","🔥","✅","💯"];
+
+const ge=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const ls=k=>localStorage.getItem(k)||"";
+const lss=(k,v)=>localStorage.setItem(k,v);
+const sp=r=>{try{return typeof r==="string"?JSON.parse(r):r;}catch(e){return null;}};
+const J=o=>JSON.stringify(o);
+const fmt=ts=>{const d=new Date(ts||Date.now());return d.getHours().toString().padStart(2,"0")+":"+d.getMinutes().toString().padStart(2,"0");};
+const fmtd=ts=>{const d=new Date(ts||Date.now());return d.getFullYear()+"/"+(d.getMonth()+1)+"/"+d.getDate();};
+const fsz=b=>b<1024?b+"B":b<1048576?(b/1024).toFixed(1)+"KB":(b/1048576).toFixed(1)+"MB";
+const gid=()=>"m"+Date.now()+Math.random().toString(36).slice(2,5);
+
+let myName="",myIcon="😀",myIconU="",myColor="#c1c2c5",myId="",myRole=RL.NONE;
+let isAdmin=false,isHost=false;
+let peer=null,hostConn=null,guestMap={};
+let members=[],msgHist=[],msgMap={};
+let delLog=[],dmLog=[],admLog=[];
+let replyTo=null,lastDate="",lastSender="",lastSenderT=0,lastSentT=0;
+let dmTarget=null,dmSess={},unreadDM={};
+let interceptTarget=null;
+let rejoining=false;
+let toastTm,notifTm;
+
+const toast=msg=>{const t=ge("toast");t.textContent=msg;t.classList.add("on");clearTimeout(toastTm);toastTm=setTimeout(()=>t.classList.remove("on"),2500);};
+const showNotif=msg=>{const n=ge("notif");n.textContent=msg;n.classList.add("on");clearTimeout(notifTm);notifTm=setTimeout(()=>n.classList.remove("on"),3000);};
+
+function applyTheme(id,save){
+  document.body.className=document.body.className.replace(/th-\S+/g,"").trim();
+  if(id&&id!=="default")document.body.classList.add("th-"+id);
+  if(save)lss("cth",id);
+}
+function buildTheme(cid){
+  const el=ge(cid);if(!el)return;el.innerHTML="";
+  const cur=ls("cth")||"default";
+  THEMES.forEach(t=>{
+    const c=document.createElement("div");c.className="thchip"+(t.id===cur?" on":"");c.textContent=t.l;
+    c.onclick=()=>{document.querySelectorAll(".thchip").forEach(x=>x.classList.toggle("on",x.textContent===t.l));applyTheme(t.id,true);};
+    el.appendChild(c);
+  });
+}
+buildTheme("spth");
+if(ls("cth"))applyTheme(ls("cth"),false);
+
+function setIPrev(el,e,u){
+  if(!el)return;
+  if(u){el.innerHTML=`<img src="${esc(u)}" onerror="this.parentElement.innerHTML='${esc(e||"😀")}'">`;return;}
+  el.innerHTML="";el.textContent=e||"😀";
+}
+function buildIP(cid,cb){
+  const el=ge(cid);if(!el)return;el.innerHTML="";
+  const sv=ls("cic");
+  EMOJIS.forEach((ic,i)=>{
+    const d=document.createElement("div");d.className="iopt"+(sv?ic===sv:i===0?" on":"");
+    d.textContent=ic;d.onclick=()=>{el.querySelectorAll(".iopt").forEach(x=>x.classList.remove("on"));d.classList.add("on");cb(ic);};
+    el.appendChild(d);
+  });
+}
+buildIP("spip",ic=>{myIcon=ic;myIconU="";setIPrev(ge("spiprev"),ic,"");});
+ge("spie").oninput=()=>{const v=[...ge("spie").value][0]||"";if(v){myIcon=v;myIconU="";setIPrev(ge("spiprev"),v,"");}};
+ge("spiu").oninput=()=>{const u=ge("spiu").value.trim();if(u){myIconU=u;setIPrev(ge("spiprev"),myIcon,u);}};
+
+function buildCP(){
+  const el=ge("spcp");if(!el)return;
+  const sv=ls("ccl")||COLORS[0];
+  const ex=el.querySelector(".ccin");
+  COLORS.forEach(col=>{
+    const d=document.createElement("div");d.className="csw"+(col===sv?" on":"");d.style.background=col;
+    d.onclick=()=>{el.querySelectorAll(".csw").forEach(x=>x.classList.remove("on"));d.classList.add("on");myColor=col;ge("spcc").value=col;};
+    el.insertBefore(d,ex);
+  });
+}
+buildCP();
+ge("spcc").oninput=e=>{if(/^#[0-9a-fA-F]{6}$/.test(e.target.value)){myColor=e.target.value;ge("spcp").querySelectorAll(".csw").forEach(x=>x.classList.remove("on"));}};
+
+function dedup(){const s=new Set();members=members.filter(m=>{if(s.has(m.id))return false;s.add(m.id);return true;});}
+
+function bcastMsg(m,ex){const r=J(m);Object.entries(guestMap).forEach(([id,g])=>{if(id!==ex)g.conn.send(r);});}
+function bcastExcept(raw,ex){Object.entries(guestMap).forEach(([id,g])=>{if(id!==ex)g.conn.send(raw);});}
+function bcastML(){dedup();const r=J({type:"members",members});Object.values(guestMap).forEach(g=>g.conn.send(r));}
+function bcastSys(text){Object.values(guestMap).forEach(g=>g.conn.send(J({type:"sys",text})));}
+function sendOrBcast(raw){
+  if(isHost)Object.values(guestMap).forEach(g=>g.conn.send(raw));
+  else if(hostConn&&hostConn.open)hostConn.send(raw);
+}
+
+function initRoom(){
+  rejoining=false;
+  const hp=new Peer(ROOM_ID);
+  hp.on("open",pid=>{
+    peer=hp;myId=pid;
+    isHost=true;
+    members=[{id:myId,name:myName,icon:myIcon,iconU:myIconU,color:myColor,role:myRole}];
+    peer.on("connection",conn=>setupGC(conn));
+    enableInp();sysMsg("部屋を作成しました。");updMBar();updUsrBar();
+    admLog.push({ts:Date.now(),t:"create",by:myName});
+  });
+  hp.on("error",e=>{
+    if(e.type==="unavailable-id"){
+      const gp=new Peer();
+      gp.on("open",pid=>{
+        peer=gp;myId=pid;
+        peer.on("connection",conn=>{conn.on("data",raw=>{const m=sp(raw);if(m&&m.type==="dm")recvDM(m);});});
+        const hc=peer.connect(ROOM_ID,{reliable:true});
+        hostConn=hc;
+        hc.on("open",()=>hc.send(J({type:"join",name:myName,icon:myIcon,iconU:myIconU,color:myColor,role:myRole})));
+        setupHC(hc);
+      });
+      gp.on("error",e2=>toast("接続エラー: "+e2.type));
+    }else toast("接続エラー: "+e.type);
+  });
+}
+
+function setupGC(conn){
+  conn.on("data",raw=>{
+    const m=sp(raw);if(!m)return;const pid=conn.peer;
+    if(m.type==="join"){
+      if(members.some(x=>x.name===m.name&&x.id!==pid)){conn.send(J({type:"kick",reason:"同名ユーザーが存在します"}));setTimeout(()=>conn.close(),300);return;}
+      guestMap[pid]={conn,name:m.name,icon:m.icon,iconU:m.iconU||"",color:m.color,role:m.role||RL.NONE};
+      members.push({id:pid,name:m.name,icon:m.icon,iconU:m.iconU||"",color:m.color,role:m.role||RL.NONE});
+      bcastML();const txt=m.name+" が入室しました";bcastSys(txt);sysMsg(txt);updMBar();
+      conn.send(J({type:"rinfo"}));
+      admLog.push({ts:Date.now(),t:"join",user:m.name});return;
+    }
+    if(m.type==="chat"){m.id=m.id||gid();msgHist.push(m);msgMap[m.id]=m;bcastMsg(m,pid);addMsg(m,"peer");return;}
+    if(m.type==="del"){hdlDel(m,true);bcastMsg(m,pid);return;}
+    if(m.type==="react"){hdlReact(m);bcastMsg(m,pid);return;}
+    if(m.type==="unreact"){hdlUnreact(m);bcastMsg(m,pid);return;}
+    if(m.type==="profile"){
+      const g=guestMap[pid];if(g){g.name=m.name;g.icon=m.icon;g.iconU=m.iconU||"";g.color=m.color;}
+      const mb=members.find(x=>x.id===pid);if(mb){mb.name=m.name;mb.icon=m.icon;mb.iconU=m.iconU||"";mb.color=m.color;}
+      bcastML();updMBar();bcastSys(m.sys);sysMsg(m.sys);return;
+    }
+    if(m.type==="role"){if(!canManage(m.reqRole,m.nr))return;applyRole(m,true);return;}
+    if(m.type==="dm"){routeDM(m,pid);return;}
+    if(m.type==="dmdel"){routeDMDel(m,pid);return;}
+    if(m.type==="rack"){bcastExcept(J(m),pid);hdlRack(m);return;}
+    if(m.type==="kick"){
+      if(m.target===myId){doLeave(true);toast("キックされました");return;}
+      const tg=guestMap[m.target];if(tg){tg.conn.send(J({type:"kick",reason:"キックされました"}));setTimeout(()=>tg.conn.close(),300);}return;
+    }
+  });
+  conn.on("close",()=>{
+    const g=guestMap[conn.peer];if(!g)return;
+    const txt=g.name+" が退出しました";sysMsg(txt);bcastSys(txt);
+    members=members.filter(x=>x.id!==conn.peer);delete guestMap[conn.peer];
+    bcastML();updMBar();updDMList();
+    admLog.push({ts:Date.now(),t:"leave",user:g.name});
+    if(Object.keys(guestMap).length===0)sysMsg("参加者がいなくなりました。次の接続を待機中...");
+  });
+}
+
+function routeDM(m,fromPid){
+  if(isAdmin){dmLog.push({...m,_at:Date.now()});const key=[m.from,m.to].sort().join("|");(dmSess["icp_"+key]=dmSess["icp_"+key]||[]).push({...m});if(interceptTarget===key)appendIcpMsg(m);}
+  if(m.to===myId){recvDM(m);}
+  else{const tg=guestMap[m.to];if(tg)tg.conn.send(J(m));}
+}
+function routeDMDel(m,fromPid){
+  if(m.to===myId){recvDMDel(m);}
+  else{const tg=guestMap[m.to];if(tg)tg.conn.send(J(m));}
+}
+
+function canManage(reqRole,targetRole){return reqRole>targetRole||isAdmin;}
+
+function setupHC(conn){
+  conn.on("data",raw=>{
+    const m=sp(raw);if(!m)return;
+    if(m.type==="kick"){doLeave(true);toast(m.reason||"キックされました");return;}
+    if(m.type==="rinfo"){
+      if(!members.find(x=>x.id===myId))members.push({id:myId,name:myName,icon:myIcon,iconU:myIconU,color:myColor,role:myRole});
+      dedup();enableInp();updMBar();updUsrBar();sysMsg("部屋に参加しました。");updDMList();return;
+    }
+    if(m.type==="chat"){msgHist.push(m);msgMap[m.id]=m;addMsg(m,"peer");sendRack(m);return;}
+    if(m.type==="del"){hdlDel(m,false);return;}
+    if(m.type==="react"){hdlReact(m);return;}
+    if(m.type==="unreact"){hdlUnreact(m);return;}
+    if(m.type==="sys"){sysMsg(m.text);return;}
+    if(m.type==="members"){
+      m.members.forEach(x=>{const ex=members.find(y=>y.id===x.id);if(ex)Object.assign(ex,x);else members.push(x);});
+      dedup();const me=members.find(x=>x.id===myId);
+      if(me&&me.role!==myRole){myRole=me.role;if(myRole>=RL.ADMIN)isAdmin=true;onRoleChange();}
+      updMBar();updDMList();return;
+    }
+    if(m.type==="rack"){hdlRack(m);return;}
+    if(m.type==="dm"){recvDM(m);return;}
+    if(m.type==="dmdel"){recvDMDel(m);return;}
+    if(m.type==="role"){applyRole(m,false);return;}
+  });
+  conn.on("close",()=>{
+    if(rejoining)return;
+    sysMsg("ホストとの接続が切断されました。再接続を試みます...");
+    disableInp();
+    showNotif("⚠️ ホストが退出しました。部屋を引き継ぎます。");
+    setTimeout(tryRejoin,1500);
+  });
+}
+
+function tryRejoin(){
+  rejoining=true;hostConn=null;isHost=false;guestMap={};
+  const saved=peer;
+  const doConnect=()=>{
+    const hc=peer.connect(ROOM_ID,{reliable:true});
+    hostConn=hc;let opened=false;
+    hc.on("open",()=>{
+      opened=true;rejoining=false;
+      hc.send(J({type:"join",name:myName,icon:myIcon,iconU:myIconU,color:myColor,role:myRole}));
+      setupHC(hc);
+    });
+    hc.on("error",()=>{if(!opened)tryBecomeHost();});
+    setTimeout(()=>{if(!opened)tryBecomeHost();},3000);
+  };
+  const tryBecomeHost=()=>{
+    if(isHost)return;
+    if(peer&&!peer.destroyed)try{peer.destroy();}catch(e){}
+    const hp=new Peer(ROOM_ID);
+    hp.on("open",pid=>{
+      peer=hp;myId=pid;rejoining=false;isHost=true;
+      const prev=members.filter(x=>x.id!==myId);
+      members=[{id:myId,name:myName,icon:myIcon,iconU:myIconU,color:myColor,role:myRole},...prev];
+      peer.on("connection",conn=>setupGC(conn));
+      enableInp();sysMsg("ホストを引き継ぎました。メンバーの再接続を待機中...");updMBar();updUsrBar();
+    });
+    hp.on("error",e=>{
+      if(e.type==="unavailable-id")setTimeout(tryRejoin,1000);
+      else toast("ホスト引き継ぎ失敗: "+e.type);
+    });
+  };
+  if(saved&&!saved.destroyed)doConnect();
+  else{const np=new Peer();np.on("open",pid=>{peer=np;myId=pid;doConnect();});np.on("error",e=>toast("再接続エラー: "+e.type));}
+}
+
+function sendRack(msg){if(!msg||!msg.id)return;sendOrBcast(J({type:"rack",msgId:msg.id,rid:myId,rname:myName,ts:Date.now()}));}
+function hdlRack(m){
+  const el=document.querySelector(`[data-mid="${m.msgId}"]`);if(!el)return;
+  const rd=el.querySelector(".mread");if(!rd)return;
+  const rl=rd._readers=rd._readers||[];
+  if(!rl.find(x=>x.id===m.rid))rl.push({id:m.rid,name:m.rname,ts:m.ts});
+  rd.textContent="既読 "+rl.length;
+  const pop=el.querySelector(".readpop");
+  if(pop){pop.innerHTML="<div class='rdph'>既読したユーザー</div>";rl.forEach(r=>{const d=document.createElement("div");d.className="rdpi";d.innerHTML=`<span>${esc(r.name)}</span><span>${fmt(r.ts)}</span>`;pop.appendChild(d);});}
+}
+
+function hdlReact(m){
+  const w=document.querySelector(`[data-mid="${m.msgId}"]`);if(!w)return;
+  let row=w.querySelector(".mreact");if(!row){row=document.createElement("div");row.className="mreact";w.querySelector(".mbody").appendChild(row);}
+  let btn=row.querySelector(`[data-em="${m.emoji}"]`);
+  if(!btn){btn=document.createElement("button");btn.className="rbt";btn.dataset.em=m.emoji;btn.dataset.us="[]";
+    btn.onclick=()=>{const us=JSON.parse(btn.dataset.us||"[]");if(us.includes(myId))sendUnreact(m.msgId,m.emoji);else sendReact(m.msgId,m.emoji);};row.appendChild(btn);}
+  const us=JSON.parse(btn.dataset.us||"[]");if(!us.includes(m.uid))us.push(m.uid);
+  btn.dataset.us=J(us);btn.innerHTML=m.emoji+" <span>"+us.length+"</span>";btn.classList.toggle("mine",us.includes(myId));
+}
+function hdlUnreact(m){
+  const w=document.querySelector(`[data-mid="${m.msgId}"]`);if(!w)return;
+  const btn=w.querySelector(`[data-em="${m.emoji}"]`);if(!btn)return;
+  const us=JSON.parse(btn.dataset.us||"[]").filter(u=>u!==m.uid);
+  if(!us.length){btn.remove();return;}
+  btn.dataset.us=J(us);btn.innerHTML=m.emoji+" <span>"+us.length+"</span>";btn.classList.toggle("mine",us.includes(myId));
+}
+function sendReact(msgId,emoji){const m={type:"react",msgId,emoji,uid:myId,ts:Date.now()};sendOrBcast(J(m));hdlReact(m);}
+function sendUnreact(msgId,emoji){const m={type:"unreact",msgId,emoji,uid:myId};sendOrBcast(J(m));hdlUnreact(m);}
+
+function hdlDel(m,bcast){
+  const orig=msgMap[m.msgId];
+  if(orig){delLog.push({...orig,_dby:m.dby,_dat:Date.now()});orig._del=true;orig._dby=m.dby;}
+  const w=document.querySelector(`[data-mid="${m.msgId}"]`);
+  if(w){
+    const b=w.querySelector(".mbbl");
+    if(b)b.innerHTML=`<span class="delmsg${isAdmin?" adm":""}">${isAdmin?"[削除] "+(orig?esc(orig.text):""):"このメッセージは削除されました"}</span>`;
+    const rr=w.querySelector(".mreact");if(rr)rr.remove();
+    const ma=w.querySelector(".macts");if(ma)ma.remove();
+  }
+  if(bcast)sendOrBcast(J(m));
+}
+function delMsg(msgId){
+  const orig=msgMap[msgId];if(!orig||orig._del)return;
+  if(orig.name!==myName&&myRole<RL.MOD&&!isAdmin){toast("削除権限がありません");return;}
+  hdlDel({type:"del",msgId,dby:myName},true);toast("削除しました");
+}
+
+function applyRole(m,bcast){
+  const mb=members.find(x=>x.id===m.tid);if(mb)mb.role=m.nr;
+  if(m.tid===myId){myRole=m.nr;isAdmin=(m.nr>=RL.ADMIN);onRoleChange();}
+  if(bcast&&isHost)bcastMsg(m,null);
+  updMBar();
+  const txt=m.tn+"の権限が「"+RLLBL[m.nr]+"」になりました";sysMsg(txt);if(isHost)bcastSys(txt);
+  admLog.push({ts:Date.now(),t:"role",target:m.tn,role:RLLBL[m.nr],by:myName});
+}
+function onRoleChange(){
+  updUsrBar();ge("badm").style.display=isAdmin?"flex":"none";
+  if(isAdmin){toast("🛡 管理者権限が付与されました");showNotif("🛡 管理者権限が付与されました");}
+  else if(myRole===RL.MOD){toast("⭐ Mod権限が付与されました");showNotif("⭐ Mod権限が付与されました");}
+  else toast("権限が変更されました");
+  updDMList();
+}
+function setRole(mb,nr){
+  if(!isAdmin&&myRole<=mb.role){toast("権限が足りません");return;}
+  if(!confirm(mb.name+"の権限を「"+RLLBL[nr]+"」にしますか？"))return;
+  const m={type:"role",tid:mb.id,tn:mb.name,nr,reqRole:myRole};
+  sendOrBcast(J(m));applyRole(m,isHost);
+}
+function kickUser(tid,tn){
+  if(!confirm(tn+"をキックしますか？"))return;
+  if(isHost){const tg=guestMap[tid];if(tg){tg.conn.send(J({type:"kick",reason:"キックされました"}));setTimeout(()=>tg.conn.close(),300);}}
+  else sendOrBcast(J({type:"kick",target:tid}));
+  toast(tn+"をキックしました");admLog.push({ts:Date.now(),t:"kick",target:tn,by:myName});
+}
+
+function updMBar(){
+  dedup();const bar=ge("mbar");bar.innerHTML="";
+  members.forEach(mb=>{
+    const c=document.createElement("div");c.className="mchip"+(mb.id===myId?" me":"");
+    const av=document.createElement("div");av.className="mcav";
+    if(mb.iconU)av.innerHTML=`<img src="${esc(mb.iconU)}" onerror="this.parentElement.textContent='${esc(mb.icon||"😀")}'">`;else av.textContent=mb.icon||"😀";
+    const nm=document.createElement("span");nm.textContent=mb.name;nm.style.color=mb.color||"#c1c2c5";
+    const r=mb.role||0;if(r>RL.NONE){const rb=document.createElement("span");rb.className="rbadge "+RLCLS[r];rb.textContent=r===RL.ADMIN?"🛡":"⭐";nm.appendChild(rb);}
+    c.appendChild(av);c.appendChild(nm);
+    if(mb.id!==myId)c.onclick=e=>{e.stopPropagation();showCtx(e.clientX,e.clientY,mb);};
+    bar.appendChild(c);
+  });
+  ge("memcount").textContent=members.length+"人";
+  updDMList();
+}
+
+function updDMList(){
+  const list=ge("dmlist");list.innerHTML="";
+  const others=members.filter(mb=>mb.id!==myId);
+  if(!others.length){list.innerHTML='<div style="padding:12px 14px;font-size:12px;color:var(--t3)">参加者がいません</div>';
+    if(isAdmin)renderIcpSection(list);return;}
+  others.forEach(mb=>{
+    const d=document.createElement("div");d.className="dmi"+(dmTarget===mb.id?" on":"");d.id="dmi-"+mb.id;
+    const av=document.createElement("div");av.className="dmav";
+    if(mb.iconU)av.innerHTML=`<img src="${esc(mb.iconU)}" onerror="this.parentElement.textContent='${esc(mb.icon||"😀")}'">`;else av.textContent=mb.icon||"😀";
+    const ol=document.createElement("div");ol.className="dmol";av.appendChild(ol);
+    const info=document.createElement("div");info.className="dminfo";
+    const nm=document.createElement("div");nm.className="dmnm";nm.textContent=mb.name;nm.style.color=mb.color||"#c1c2c5";
+    const sub=document.createElement("div");sub.className="dmsub";sub.textContent=RLLBL[mb.role||0];
+    info.appendChild(nm);info.appendChild(sub);
+    const nb=unreadDM[mb.id]||0;
+    d.appendChild(av);d.appendChild(info);
+    if(nb>0){const n=document.createElement("div");n.className="dmnb";n.textContent=nb>99?"99+":nb;d.appendChild(n);}
+    d.onclick=()=>openDM(mb.id,mb.name,mb.icon,mb.iconU,mb.color);
+    list.appendChild(d);
+  });
+  if(isAdmin)renderIcpSection(list);
+}
+
+function renderIcpSection(list){
+  const otherMbs=members.filter(x=>x.id!==myId);
+  if(otherMbs.length<2)return;
+  const sect=document.createElement("div");sect.className="icp-sect";
+  const lbl=document.createElement("div");lbl.className="icp-lbl";lbl.textContent="🛡 DM傍受";sect.appendChild(lbl);
+  const pairs=new Map();
+  otherMbs.forEach(a=>{otherMbs.filter(y=>y.id!==a.id).forEach(b=>{const key=[a.id,b.id].sort().join("|");if(!pairs.has(key))pairs.set(key,{a,b});});});
+  pairs.forEach(({a,b})=>{
+    const key=[a.id,b.id].sort().join("|");
+    const d=document.createElement("div");d.className="icp-item"+(interceptTarget===key?" on":"");
+    d.textContent="👁 "+a.name+" ↔ "+b.name;
+    d.onclick=()=>openIntercept(a,b,key);
+    sect.appendChild(d);
+  });
+  list.appendChild(sect);
+}
+
+function openDM(tid,tn,ticon,ticonu,tcolor){
+  dmTarget=tid;interceptTarget=null;
+  document.querySelectorAll(".dmi").forEach(x=>x.classList.remove("on"));
+  const el=ge("dmi-"+tid);if(el)el.classList.add("on");
+  if(unreadDM[tid]){delete unreadDM[tid];updDMList();}
+  ge("dmlistview").classList.add("hide");ge("dmchat").classList.add("on");
+  setIPrev(ge("dmhdr-av"),ticon||"😀",ticonu||"");
+  ge("dmhdr-nm").textContent=tn;
+  ge("icpbanner").style.display="none";ge("dmftr").style.display="";
+  ge("dmstbar").textContent="DM中: "+tn;
+  ge("dmmsgs").innerHTML="";
+  (dmSess[tid]||[]).forEach(m=>appendDMMsg(m,m.from===myId));
+  ge("dminp").focus();
+}
+function openIntercept(a,b,key){
+  interceptTarget=key;dmTarget=null;
+  document.querySelectorAll(".dmi,.icp-item").forEach(x=>x.classList.remove("on"));
+  ge("dmlistview").classList.add("hide");ge("dmchat").classList.add("on");
+  ge("dmhdr-av").textContent="👁";ge("dmhdr-nm").textContent=a.name+" ↔ "+b.name;
+  ge("icpbanner").style.display="block";ge("dmftr").style.display="none";
+  ge("dmstbar").textContent="傍受中: "+a.name+" ↔ "+b.name;
+  ge("dmmsgs").innerHTML="";
+  (dmSess["icp_"+key]||[]).sort((x,y)=>(x.ts||0)-(y.ts||0)).forEach(m=>appendDMMsg(m,false,true,members.find(x=>x.id===m.from)?.name));
+}
+function appendIcpMsg(m){
+  if(interceptTarget!=[m.from,m.to].sort().join("|"))return;
+  appendDMMsg(m,false,true,members.find(x=>x.id===m.from)?.name);
+}
+
+ge("dmbk").onclick=()=>{
+  dmTarget=null;interceptTarget=null;
+  ge("dmlistview").classList.remove("hide");ge("dmchat").classList.remove("on");
+  ge("icpbanner").style.display="none";ge("dmftr").style.display="";
+  ge("dmhdrnm").textContent="ダイレクトメッセージ";
+  ge("dmstbar").textContent="DMを始めるにはメンバーを選択";
+  updDMList();
+};
+
+function appendDMMsg(m,isSelf,isIcp=false,icpSenderName=""){
+  const row=document.createElement("div");row.className="dmm-row "+(isSelf?"self":"peer");if(m.id)row.dataset.dmwid=m.id;
+  const col=document.createElement("div");col.className="dmm-col";
+  if(!isSelf){
+    const senderMb=members.find(x=>x.id===m.from);
+    const av=document.createElement("div");av.className="dmm-row-av";
+    if(isIcp){av.textContent=senderMb?.icon||"?";}
+    else{if(m.iconU)av.innerHTML=`<img src="${esc(m.iconU)}" onerror="this.parentElement.textContent='${esc(m.icon||"😀")}'">`;else av.textContent=m.icon||"😀";}
+    row.appendChild(av);
+    if(isIcp||!dmTarget){const sn=document.createElement("div");sn.className="dmm-snd";sn.textContent=icpSenderName||(senderMb?.name||m.fn||"?");col.appendChild(sn);}
+  }
+  const bbl=document.createElement("div");bbl.className="dmm-bbl"+(m.del?" del":"");
+  bbl.textContent=m.del?"[取り消し済み]":m.text;col.appendChild(bbl);
+  const meta=document.createElement("div");meta.className="dmm-meta";
+  const ts=document.createElement("span");ts.className="dmm-ts";ts.textContent=fmt(m.ts||Date.now());meta.appendChild(ts);
+  if(isSelf&&!isIcp&&!m.del){
+    const db=document.createElement("button");db.className="dmm-del-btn";db.title="取り消し";db.textContent="✕";
+    db.onclick=()=>delDM(m,row,bbl);meta.appendChild(db);
+  }
+  col.appendChild(meta);row.appendChild(col);
+  ge("dmmsgs").appendChild(row);ge("dmmsgs").scrollTop=ge("dmmsgs").scrollHeight;
+}
+function delDM(m,row,bbl){
+  m.del=true;bbl.textContent="[取り消し済み]";bbl.classList.add("del");
+  row.querySelector(".dmm-del-btn")?.remove();
+  sendOrBcast(J({type:"dmdel",id:m.id,to:m.to||dmTarget,from:myId}));
+}
+function sendDM(){
+  const text=ge("dminp").value.trim();if(!text||!dmTarget)return;
+  const m={type:"dm",from:myId,fn:myName,icon:myIcon,iconU:myIconU,to:dmTarget,text,ts:Date.now(),id:gid()};
+  if(!dmSess[dmTarget])dmSess[dmTarget]=[];dmSess[dmTarget].push({...m});
+  appendDMMsg({...m},true);ge("dminp").value="";
+  sendOrBcast(J(m));
+}
+function recvDM(m){
+  const sess=dmSess[m.from]=dmSess[m.from]||[];sess.push({...m});
+  if(isAdmin){const key=[m.from,m.to].sort().join("|");(dmSess["icp_"+key]=dmSess["icp_"+key]||[]).push({...m});if(interceptTarget===key)appendIcpMsg(m);}
+  if(dmTarget===m.from&&ge("dmchat").classList.contains("on")&&!interceptTarget){appendDMMsg({...m},false);}
+  else{unreadDM[m.from]=(unreadDM[m.from]||0)+1;updDMList();showNotif("💬 "+m.fn+": "+m.text.slice(0,25));}
+}
+function recvDMDel(m){
+  const sess=dmSess[m.from];if(sess){const d=sess.find(x=>x.id===m.id);if(d)d.del=true;}
+  if(dmTarget===m.from||dmTarget===m.to){
+    const row=ge("dmmsgs").querySelector(`[data-dmwid="${m.id}"]`);
+    if(row){const b=row.querySelector(".dmm-bbl");if(b){b.textContent="[取り消し済み]";b.classList.add("del");}row.querySelector(".dmm-del-btn")?.remove();}
+  }
+}
+ge("dmsnd").onclick=sendDM;
+ge("dminp").addEventListener("keydown",e=>{if(e.key==="Enter")sendDM();});
+
+const ctx=ge("ctx");
+function showCtx(x,y,mb){
+  ctx.innerHTML="";
+  const ci=(ico,lb,cls,cb)=>{const d=document.createElement("div");d.className="cxi"+(cls?" "+cls:"");d.innerHTML="<span>"+ico+"</span><span>"+lb+"</span>";d.onclick=()=>{closeCtx();cb();};ctx.appendChild(d);};
+  const sep=()=>ctx.appendChild(Object.assign(document.createElement("div"),{className:"cxsep"}));
+  ci("✉️","DMを送る","",()=>{const mo=members.find(x=>x.id===mb.id);if(mo)openDM(mo.id,mo.name,mo.icon,mo.iconU,mo.color);});
+  const ck=(isAdmin||myRole>mb.role)&&mb.id!==myId;
+  const cm=isAdmin&&mb.id!==myId;
+  if(cm||ck)sep();
+  if(cm&&mb.role<RL.MOD)ci("⭐","Modにする","m",()=>setRole(mb,RL.MOD));
+  if(cm&&mb.role===RL.MOD)ci("⬇️","Mod解除","",()=>setRole(mb,RL.NONE));
+  if(isAdmin&&mb.role<RL.ADMIN)ci("🛡","管理者にする","s",()=>setRole(mb,RL.ADMIN));
+  if(isAdmin&&mb.role===RL.ADMIN&&mb.id!==myId)ci("⬇️","管理者解除","d",()=>setRole(mb,RL.NONE));
+  if(ck){sep();ci("🚫","キック","d",()=>kickUser(mb.id,mb.name));}
+  ctx.style.left=Math.min(x,window.innerWidth-180)+"px";
+  ctx.style.top=Math.min(y,window.innerHeight-260)+"px";
+  ctx.classList.add("on");
+}
+function closeCtx(){ctx.classList.remove("on");}
+document.addEventListener("click",e=>{if(!ctx.contains(e.target))closeCtx();});
+
+function sendMsg(){
+  const text=ge("mta").value.trim();if(!text)return;
+  const now=Date.now();
+  if(!isAdmin&&myRole<RL.MOD&&now-lastSentT<1000){toast("1秒に1回まで");return;}
+  lastSentT=now;
+  const id=gid();
+  const m={type:"chat",sub:"text",id,name:myName,icon:myIcon,iconU:myIconU,color:myColor,text,ts:new Date().toISOString()};
+  if(replyTo){m.rep=replyTo;clearRep();}
+  msgHist.push(m);msgMap[id]=m;addMsg(m,"self");ge("mta").value="";ge("mta").style.height="32px";sendOrBcast(J(m));
+}
+ge("bsnd").addEventListener("click",sendMsg);
+ge("mta").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg();}});
+ge("mta").addEventListener("input",()=>{ge("mta").style.height="32px";ge("mta").style.height=Math.min(ge("mta").scrollHeight,110)+"px";});
+function setRep(m){replyTo={id:m.id,name:m.name,text:(m.text||"").slice(0,50)};ge("repbartxt").textContent="返信: "+m.name+" — "+replyTo.text;ge("repbar").classList.add("on");ge("mta").focus();}
+function clearRep(){replyTo=null;ge("repbar").classList.remove("on");}
+ge("repc").onclick=clearRep;
+
+ge("battch").addEventListener("click",()=>ge("attm").classList.toggle("on"));
+ge("aoimg").addEventListener("click",()=>{ge("fiimg").click();ge("attm").classList.remove("on");});
+ge("aovid").addEventListener("click",()=>{ge("fivid").click();ge("attm").classList.remove("on");});
+ge("aofile").addEventListener("click",()=>{ge("fifile").click();ge("attm").classList.remove("on");});
+ge("aolink").addEventListener("click",()=>{
+  const u=prompt("URLを入力");if(!u)return;ge("attm").classList.remove("on");
+  const href=u.startsWith("http")?u:"https://"+u;const id=gid();
+  const m={type:"chat",sub:"link",id,name:myName,icon:myIcon,iconU:myIconU,color:myColor,text:href,ts:new Date().toISOString()};
+  msgHist.push(m);msgMap[id]=m;addMsg(m,"self");sendOrBcast(J(m));
+});
+ge("fiimg").onchange=()=>{hdlFile(ge("fiimg").files[0],"image");ge("fiimg").value="";};
+ge("fivid").onchange=()=>{hdlFile(ge("fivid").files[0],"video");ge("fivid").value="";};
+ge("fifile").onchange=()=>{hdlFile(ge("fifile").files[0],"file");ge("fifile").value="";};
+function hdlFile(file,sub){
+  if(!file||file.size>MB8){toast("8MB以下のみ");return;}toast("送信中...");
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const id=gid();const m={type:"chat",sub,id,name:myName,icon:myIcon,iconU:myIconU,color:myColor,data:e.target.result,fname:file.name,fsize:file.size,ts:new Date().toISOString()};
+    msgHist.push(m);msgMap[id]=m;addMsg(m,"self");sendOrBcast(J(m));
+  };reader.readAsDataURL(file);
+}
+
+function addMsg(m,side,scroll=true){
+  const cb=ge("cbox");if(!cb)return;
+  const ts=m.ts||new Date().toISOString();const ds=fmtd(ts);
+  if(ds!==lastDate){lastDate=ds;lastSender="";lastSenderT=0;const sep=document.createElement("div");sep.className="dsep";sep.textContent=ds;cb.appendChild(sep);}
+  const now=Date.now();const sk=side==="self"?"__self":m.name+(m.icon||"");
+  const isCont=sk===lastSender&&now-lastSenderT<120000;lastSender=sk;lastSenderT=now;
+  const wrap=document.createElement("div");wrap.className="mwrap "+side+(isCont?" cont":"");if(m.id)wrap.dataset.mid=m.id;
+  const av=document.createElement("div");av.className="mav";
+  if(m.iconU)av.innerHTML=`<img src="${esc(m.iconU)}" onerror="this.parentElement.textContent='${esc(m.icon||"😀")}'">`;else av.textContent=m.icon||"😀";
+  av.onclick=()=>{const mb=members.find(x=>x.name===m.name);if(mb&&mb.id!==myId)showCtx(av.getBoundingClientRect().right,av.getBoundingClientRect().bottom,mb);};
+  wrap.appendChild(av);
+  const body=document.createElement("div");body.className="mbody";
+  if(!isCont){
+    const meta=document.createElement("div");meta.className="mmeta";
+    const snd=document.createElement("span");snd.className="msnd";snd.textContent=m.name;snd.style.color=m.color||"#c1c2c5";meta.appendChild(snd);
+    const mr=(members.find(x=>x.name===m.name)||{}).role||0;
+    if(mr>RL.NONE){const rb=document.createElement("span");rb.className="rbadge "+RLCLS[mr];rb.textContent=RLLBL[mr];meta.appendChild(rb);}
+    const ts2=document.createElement("span");ts2.className="mts";ts2.textContent=fmt(ts);meta.appendChild(ts2);
+    body.appendChild(meta);
+  }
+  const bbl=document.createElement("div");bbl.className="mbbl";
+  const acts=document.createElement("div");acts.className="macts";
+  const mab=(ico,ttl,cls,fn)=>{const b=document.createElement("button");b.className="mac"+(cls?" "+cls:"");b.title=ttl;b.textContent=ico;b.onclick=e=>{e.stopPropagation();fn();};acts.appendChild(b);};
+  const rpEl=document.createElement("div");rpEl.className="rpick";
+  const rpBtn=document.createElement("button");rpBtn.className="mac";rpBtn.title="リアクション";rpBtn.textContent="😊";
+  rpBtn.onclick=e=>{e.stopPropagation();rpEl.classList.toggle("on");};acts.appendChild(rpBtn);
+  REACTS.forEach(r=>{const rb=document.createElement("button");rb.className="rpb";rb.textContent=r;rb.onclick=e=>{e.stopPropagation();sendReact(m.id,r);rpEl.classList.remove("on");};rpEl.appendChild(rb);});
+  bbl.appendChild(rpEl);
+  mab("↩️","返信","",()=>setRep(m));
+  const canDel=m.name===myName||myRole>=RL.MOD||isAdmin;
+  if(canDel)mab("🗑️","削除","d",()=>delMsg(m.id));
+  bbl.appendChild(acts);
+  if(m.rep){const rp=document.createElement("div");rp.className="mrp";rp.textContent=m.rep.name+": "+m.rep.text;rp.onclick=()=>{const el=document.querySelector(`[data-mid="${m.rep.id}"]`);if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.background="rgba(92,124,250,.2)";setTimeout(()=>el.style.background="",1500);}};bbl.appendChild(rp);}
+  const sub=m.sub||"text";
+  if(sub==="text"){
+    const tc=document.createElement("div");tc.className="mtxt";const isLong=m.text&&m.text.length>CLEN;
+    if(isLong){tc.textContent=m.text.slice(0,CLEN);const ex=document.createElement("span");ex.className="mexp";ex.textContent="…もっと見る";let exp=false;ex.onclick=()=>{exp=!exp;tc.textContent=exp?m.text:m.text.slice(0,CLEN);ex.textContent=exp?" 折りたたむ":"…もっと見る";tc.appendChild(ex);};tc.appendChild(ex);}
+    else tc.textContent=m.text;bbl.appendChild(tc);
+  }
+  else if(sub==="image"){const img=document.createElement("img");img.className="mimg";img.src=m.data;img.onclick=()=>{ge("lbimg").src=m.data;ge("lbx").classList.add("on");};bbl.appendChild(img);}
+  else if(sub==="video"){const v=document.createElement("video");v.className="mvid";v.src=m.data;v.controls=true;bbl.appendChild(v);}
+  else if(sub==="file"){const a=document.createElement("a");a.className="mfile";a.href=m.data;a.download=m.fname;a.innerHTML=`<span>📎</span><span>${esc(m.fname)} <small style="color:var(--t3)">(${fsz(m.fsize||0)})</small></span>`;bbl.appendChild(a);}
+  else if(sub==="link"){const lk=document.createElement("div");lk.className="mlnk";lk.textContent=m.text;lk.onclick=()=>window.open(m.text,"_blank");bbl.appendChild(lk);}
+  body.appendChild(bbl);
+  const tr=document.createElement("div");tr.className="mtime";
+  if(isCont){const t3=document.createElement("span");t3.className="mts";t3.textContent=fmt(ts);tr.appendChild(t3);}
+  if(side==="self"&&m.id){
+    const rd=document.createElement("span");rd.className="mread";rd.textContent="送信済";
+    const pop=document.createElement("div");pop.className="readpop";pop.innerHTML="<div class='rdph'>既読ユーザー</div>";rd._readers=[];
+    rd.onclick=e=>{e.stopPropagation();pop.classList.toggle("on");};
+    document.addEventListener("click",()=>pop.classList.remove("on"),{once:false});
+    bbl.appendChild(pop);tr.appendChild(rd);
+  }
+  body.appendChild(tr);wrap.appendChild(body);cb.appendChild(wrap);
+  if(scroll)cb.scrollTop=cb.scrollHeight;
+  if(side==="peer"&&m.id)sendRack(m);
+}
+
+function sysMsg(text){const cb=ge("cbox");const el=document.createElement("div");el.className="smsg";el.textContent=text;cb.appendChild(el);cb.scrollTop=cb.scrollHeight;}
+
+let srchOpen=false;
+ge("bsrch").onclick=()=>{srchOpen=!srchOpen;ge("srchwrap").style.display=srchOpen?"block":"none";if(srchOpen)ge("srcinp").focus();else ge("srcres").style.display="none";};
+ge("srcinp").addEventListener("input",()=>{
+  const q=ge("srcinp").value.trim().toLowerCase();const res=ge("srcres");
+  if(!q){res.style.display="none";return;}
+  const found=msgHist.filter(m=>!m._del&&m.text&&m.text.toLowerCase().includes(q)).slice(-30).reverse();
+  if(!found.length){res.innerHTML='<div style="padding:8px 10px;font-size:12px;color:var(--t3)">見つかりません</div>';res.style.display="block";return;}
+  res.innerHTML="";found.forEach(m=>{
+    const hi=esc(m.text).replace(new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi"),s=>`<mark style="background:rgba(92,124,250,.35);border-radius:2px;padding:0 2px">${s}</mark>`);
+    const d=document.createElement("div");d.style.cssText="padding:7px 10px;cursor:pointer;border-bottom:1px solid var(--s3);font-size:12px";
+    d.innerHTML=`<div style="color:var(--t3);font-size:11px;margin-bottom:2px">${esc(m.name)} <span style="color:var(--t4)">${fmt(m.ts)}</span></div><div style="color:var(--t1)">${hi}</div>`;
+    d.onmouseenter=()=>d.style.background="var(--s2)";d.onmouseleave=()=>d.style.background="";
+    d.onclick=()=>{const el=document.querySelector(`[data-mid="${m.id}"]`);if(el){el.scrollIntoView({behavior:"smooth",block:"center"});el.style.background="rgba(92,124,250,.2)";setTimeout(()=>el.style.background="",1500);}res.style.display="none";ge("srcinp").value="";};
+    res.appendChild(d);
+  });res.style.display="block";
+});
+document.addEventListener("click",e=>{if(ge("srchwrap")&&!ge("srchwrap").contains(e.target))ge("srcres").style.display="none";});
+
+ge("badm").onclick=()=>{buildAdm();ge("adov").classList.add("on");};
+ge("adcl").onclick=()=>ge("adov").classList.remove("on");
+document.querySelectorAll(".adtab").forEach(tab=>{tab.onclick=()=>{document.querySelectorAll(".adtab").forEach(t=>t.classList.remove("on"));tab.classList.add("on");buildAdm(tab.dataset.t);};});
+function buildAdm(t="del"){
+  const b=ge("adbody");b.innerHTML="";
+  if(t==="del"){
+    if(!delLog.length){b.innerHTML='<div style="color:var(--t3);font-size:13px;padding:8px">削除メッセージなし</div>';return;}
+    delLog.forEach(m=>{const d=document.createElement("div");d.className="adli del";d.innerHTML=`<div class="adlii">削除者: ${esc(m._dby||"?")} | 送信: ${esc(m.name)} | ${fmt(m.ts)}</div><div class="adlim">${esc(m.text||"[メディア]")}</div>`;b.appendChild(d);});
+  }else if(t==="dm"){
+    if(!dmLog.length){b.innerHTML='<div style="color:var(--t3);font-size:13px;padding:8px">DMログなし</div>';return;}
+    dmLog.forEach(m=>{const d=document.createElement("div");d.className="adli dm";d.innerHTML=`<div class="adlii">${esc(m.fn)} → 宛先 | ${fmt(m.ts)}</div><div class="adlim">${esc(m.text)}</div>`;b.appendChild(d);});
+  }else if(t==="log"){
+    if(!admLog.length){b.innerHTML='<div style="color:var(--t3);font-size:13px;padding:8px">ログなし</div>';return;}
+    [...admLog].reverse().forEach(l=>{const tp={create:"作成",join:"入室",leave:"退出",kick:"Kick",role:"権限変更"};const d=document.createElement("div");d.className="adli";d.innerHTML=`<div class="adlii">[${tp[l.t]||l.t}] ${new Date(l.ts).toLocaleTimeString()}</div><div class="adlim">${esc(l.user||l.target||"")} ${l.by?"by "+esc(l.by):""} ${l.role?"→ "+esc(l.role):""}</div>`;b.appendChild(d);});
+  }
+}
+
+ge("uset").onclick=()=>{
+  ge("spn").value=myName;setIPrev(ge("spiprev"),myIcon,myIconU);ge("spie").value=myIcon;ge("spiu").value=myIconU;ge("spcc").value=myColor;
+  ge("sov").classList.add("on");
+};
+ge("spcl").onclick=()=>ge("sov").classList.remove("on");
+ge("spapply").onclick=()=>{
+  const nn=ge("spn").value.trim();if(!nn){toast("名前を入力");return;}
+  const on=myName;myName=nn;
+  myIcon=[...ge("spie").value][0]||document.querySelector("#spip .iopt.on")?.textContent||myIcon;
+  myIconU=ge("spiu").value.trim();
+  myColor=ge("spcc").value.trim()||(ge("spcp").querySelector(".csw.on")?.style.background)||myColor;
+  const bs=ge("spbs").value.trim(),bp=ge("spbp").value.trim();
+  if(bs)document.documentElement.style.setProperty("--bself",bs);
+  if(bp)document.documentElement.style.setProperty("--bpeer",bp);
+  lss("cnm",myName);lss("cic",myIcon);lss("ciu",myIconU);lss("ccl",myColor);
+  const pw=ge("sppw").value;
+  if(pw===PW_ADMIN&&!isAdmin){
+    isAdmin=true;myRole=RL.ADMIN;
+    const me=members.find(x=>x.id===myId);if(me)me.role=RL.ADMIN;
+    const mo={type:"role",tid:myId,tn:myName,nr:RL.ADMIN,reqRole:RL.ADMIN};
+    sendOrBcast(J(mo));if(isHost)bcastMsg(mo,null);
+    onRoleChange();
+  }else if(pw&&pw!==PW_ADMIN)toast("パスワードが違います");
+  ge("sppw").value="";
+  const me=members.find(x=>x.id===myId);if(me){me.name=myName;me.icon=myIcon;me.iconU=myIconU;me.color=myColor;}
+  const st=on+" が "+myName+" にプロフィール変更";
+  sendOrBcast(J({type:"profile",name:myName,icon:myIcon,iconU:myIconU,color:myColor,sys:st}));
+  if(isHost)bcastML();sysMsg(st);updMBar();updUsrBar();ge("sov").classList.remove("on");toast("✅ 更新しました");
+};
+
+function updUsrBar(){
+  const av=ge("uav");
+  if(myIconU)av.innerHTML=`<img src="${esc(myIconU)}" onerror="this.parentElement.textContent='${esc(myIcon)}'">`;else av.textContent=myIcon||"😀";
+  ge("unm").textContent=myName||"-";ge("unm").style.color=myColor;
+  const rl={[RL.ADMIN]:"🛡 管理者",[RL.MOD]:"⭐ Mod",[RL.NONE]:"👤 一般"};
+  ge("utag").textContent=(isHost?"👑 ホスト ":"")+(rl[myRole]||"一般");
+  ge("badm").style.display=isAdmin?"flex":"none";
+}
+
+ge("bent").addEventListener("click",()=>{
+  myName=ge("ln").value.trim();if(!myName){toast("名前を入力してください");return;}
+  myIcon=ls("cic")||"😀";myIconU=ls("ciu")||"";myColor=ls("ccl")||COLORS[0];
+  lss("cnm",myName);
+  ge("login").style.display="none";ge("app").classList.add("on");
+  updUsrBar();initRoom();
+});
+ge("ln").addEventListener("keydown",e=>{if(e.key==="Enter")ge("bent").click();});
+if(ls("cnm"))ge("ln").value=ls("cnm");
+
+ge("bleave").onclick=()=>{
+  const gc=Object.keys(guestMap).length;
+  ge("cfmsg").textContent=isHost&&gc>0?"退出するとホストが他のメンバーに引き継がれます。":isHost&&gc===0?"あなたが最後のメンバーです。退出すると部屋が閉じます。":"退出するとチャット履歴は消えます。";
+  ge("cfov").classList.add("on");
+};
+ge("cfno").onclick=()=>ge("cfov").classList.remove("on");
+ge("cfyes").onclick=()=>{ge("cfov").classList.remove("on");doLeave(false);};
+
+function doLeave(silent){
+  if(!silent){
+    if(isHost&&Object.keys(guestMap).length>0){
+      const txt=myName+" がホストを退出しました。部屋はメンバーに引き継がれます。";
+      bcastSys(txt);sysMsg(txt);
+      members=members.filter(x=>x.id!==myId);bcastML();
+      setTimeout(()=>{Object.values(guestMap).forEach(g=>{try{g.conn.close();}catch(e){}});if(peer)try{peer.destroy();}catch(e){}},300);
+    }else{
+      const txt=myName+" が退出しました";
+      if(isHost)bcastSys(txt);
+      else if(hostConn&&hostConn.open)hostConn.send(J({type:"sys",text:txt}));
+      Object.values(guestMap).forEach(g=>{try{g.conn.close();}catch(e){}});
+      if(hostConn)try{hostConn.close();}catch(e){}
+      if(peer)try{peer.destroy();}catch(e){}
+    }
+  }else{
+    Object.values(guestMap).forEach(g=>{try{g.conn.close();}catch(e){}});
+    if(hostConn)try{hostConn.close();}catch(e){}
+    if(peer)try{peer.destroy();}catch(e){}
+  }
+  ge("app").classList.remove("on");ge("login").style.display="flex";
+  peer=null;hostConn=null;members=[];guestMap={};msgHist=[];msgMap={};
+  delLog=[];dmLog=[];admLog=[];dmSess={};unreadDM={};
+  isHost=false;isAdmin=false;myRole=RL.NONE;rejoining=false;
+  ge("cbox").innerHTML="";ge("mbar").innerHTML="";ge("utag").textContent="未接続";
+  ge("dmlistview").classList.remove("hide");ge("dmchat").classList.remove("on");
+}
+function enableInp(){ge("mta").disabled=false;ge("bsnd").disabled=false;ge("utag").textContent=(isHost?"👑 ":"")+(RLLBL[myRole]||"一般");}
+function disableInp(){ge("mta").disabled=true;ge("bsnd").disabled=true;ge("utag").textContent="再接続中...";}
+
+ge("lbxc").onclick=()=>ge("lbx").classList.remove("on");
+ge("lbx").onclick=e=>{if(e.target===ge("lbx"))ge("lbx").classList.remove("on");};
+window.addEventListener("beforeunload",()=>doLeave(true));
+</script>
+</body>
+</html>
